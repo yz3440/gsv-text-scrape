@@ -8,7 +8,7 @@ The code is based on my previous open source work [nyc-gsv-collector](https://gi
 
 ## Step 1: Find street view in a specific area
 
-### Install the dependencies
+### Install scraping dependencies
 
 ```bash
 pip install -r requirements-scrape.txt
@@ -21,6 +21,8 @@ python 1a-sample-coords.py
 ```
 
 In the folder `geojson`, there are some geojson files that contain the area of interest. The `example.geojson` contains the adjacent area of the workshop venue.
+
+You can also make your own geojson using this webtool [geojson.io](https://geojson.io/). You need to modify the code in `1a-sample-coords.py` to use your own geojson file.
 
 This will sample 25m points in the area and save the results to the database.
 
@@ -82,7 +84,7 @@ python b1-pano-ocr.py --save-result # save the results to a `/temp` folder
 
 ## Step 3: Visualize the results
 
-### Install the dependencies
+### Install server dependencies
 
 ```bash
 pip install -r requirements-server.txt
