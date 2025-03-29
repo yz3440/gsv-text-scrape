@@ -1,0 +1,6 @@
+geopandas
+streetview
+python-dotenv
+
+fastapi
+uvicorn
