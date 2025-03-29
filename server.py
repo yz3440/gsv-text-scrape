@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 import sqlite3
 from typing import Optional
 import uvicorn
@@ -32,6 +33,15 @@ GOOGLE_MAP_API_KEY = os.getenv("GOOGLE_MAP_API_KEY")
 # Log the database path on startup
 logger.info(f"Database path: {DB_PATH}")
 logger.info(f"Database exists: {os.path.exists(DB_PATH)}")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def read_root():
+    """Serve the index.html file."""
+    return FileResponse("static/index.html")
 
 
 def get_db():
