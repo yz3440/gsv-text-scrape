@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import sqlite3
-from typing import Optional
+from typing import Optional, List
 import uvicorn
 import os
 import logging
@@ -26,22 +26,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get the absolute path to the database file
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gsv.db")
+# Get the absolute path to the database file and static directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "gsv.db")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 GOOGLE_MAP_API_KEY = os.getenv("GOOGLE_MAP_API_KEY")
 
-# Log the database path on startup
+# Log the paths on startup
+logger.info(f"Base directory: {BASE_DIR}")
 logger.info(f"Database path: {DB_PATH}")
+logger.info(f"Static directory: {STATIC_DIR}")
 logger.info(f"Database exists: {os.path.exists(DB_PATH)}")
+logger.info(f"Static directory exists: {os.path.exists(STATIC_DIR)}")
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/")
 async def read_root():
     """Serve the index.html file."""
-    return FileResponse("static/index.html")
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if not os.path.exists(index_path):
+        raise HTTPException(status_code=404, detail="index.html not found")
+    return FileResponse(index_path)
+
+
+@app.get("/preview-db")
+async def read_preview_db():
+    """Serve the preview-db.html file."""
+    file_path = os.path.join(STATIC_DIR, "preview-db.html")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="preview-db.html not found")
+    return FileResponse(file_path)
+
+
+@app.get("/preview-ocr")
+async def read_preview_ocr():
+    """Serve the preview-ocr.html file."""
+    file_path = os.path.join(STATIC_DIR, "preview-ocr.html")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="preview-ocr.html not found")
+    return FileResponse(file_path)
+
+
+@app.get("/preview-db-ocr")
+async def read_preview_db_ocr():
+    """Serve the preview-db-ocr.html file."""
+    file_path = os.path.join(STATIC_DIR, "preview-db-ocr.html")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="preview-db-ocr.html not found")
+    return FileResponse(file_path)
 
 
 def get_db():
@@ -158,6 +193,79 @@ async def get_panorama(pano_id: str):
         return dict(row)
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.get("/api/ocr-search")
+async def search_ocr(
+    query: str,
+    page: int = 1,
+    page_size: int = 50,
+    min_confidence: Optional[float] = None,
+):
+    """Search through OCR results and return matching entries with panorama information."""
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Base query to join OCR results with panorama information
+        base_query = """
+            SELECT 
+                ocr.id,
+                ocr.pano_id,
+                ocr.text,
+                ocr.confidence,
+                ocr.yaw,
+                ocr.pitch,
+                ocr.width,
+                ocr.height,
+                ocr.engine,
+                sp.lat,
+                sp.lon,
+                sp.heading,
+                sp.pitch as panorama_pitch,
+                sp.roll,
+                sp.date,
+                sp.copyright
+            FROM ocr_result ocr
+            JOIN search_panoramas sp ON ocr.pano_id = sp.pano_id
+            WHERE ocr.text LIKE ?
+        """
+
+        # Add confidence filter if specified
+        if min_confidence is not None:
+            base_query += " AND ocr.confidence >= ?"
+            params = [f"%{query}%", min_confidence]
+        else:
+            params = [f"%{query}%"]
+
+        # Get total count
+        count_query = f"SELECT COUNT(*) as total FROM ({base_query})"
+        cursor.execute(count_query, params)
+        total = cursor.fetchone()["total"]
+
+        # Get paginated results
+        offset = (page - 1) * page_size
+        query = base_query + " ORDER BY ocr.confidence DESC LIMIT ? OFFSET ?"
+        cursor.execute(query, params + [page_size, offset])
+
+        rows = cursor.fetchall()
+        results = [dict(row) for row in rows]
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+            "data": results,
+        }
+
+    except Exception as e:
+        logger.error(f"Error searching OCR results: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:

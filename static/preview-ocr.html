@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      Preview | Equirectangular Panorama with Spherical/Panoramic OCR Results
+    </title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  </head>
+  <body
+    class="m-0 overflow-hidden font-mono flex flex-row h-screen text-white bg-gray-900"
+  >
+    <div id="container" class="flex flex-row">
+      <div id="info-container" class="flex flex-col m-8 w-96">
+        <h1 class="text-xl font-bold mb-2 mx-auto">
+          Preview Equirectangular Panorama with OCR Results
+        </h1>
+
+        <p class="mb-4">
+          You can add a panorama image and its corresponding OCR results to
+          preview the results on the sphere.
+        </p>
+
+        <p class="mb-2">The json should be in the following format:</p>
+        <pre class="text-xs m-2 bg-gray-800 p-2 rounded mb-4">
+[
+  {
+    "text": "Hello, world!",
+    "yaw": 180,
+    "pitch": 0,
+    "width": 10,
+    "height": 10,
+    "confidence": 0.9
+  },
+  ...
+]</pre
+        >
+        <div
+          id="dropZone"
+          class="relative w-full h-full border-2 border-dashed border-white flex flex-col justify-center items-center text-white text-center bg-black bg-opacity-50 text-xs z-10 hover:bg-opacity-70"
+        >
+          <div class="absolute top-0 mt-4">
+            <p>Panorama (PNG/JPEG)</p>
+            <p>OCR Results (JSON)</p>
+          </div>
+
+          <p class="mt-2 text-sm">Drag & Drop</p>
+
+          <p class="mt-2 text-sm">or</p>
+          <input type="file" id="fileInput" class="hidden" multiple />
+          <label
+            for="fileInput"
+            id="fileInputLabel"
+            class="bg-black bg-opacity-70 text-white p-2 rounded cursor-pointer mt-2"
+            >Open Files</label
+          >
+        </div>
+      </div>
+      <div id="canvas-container" class="col-span-4 w-full h-full"></div>
+    </div>
+    <script>
+      let scene, camera, renderer, sphere, controls;
+      const minZoom = 0.7;
+      const maxZoom = 4;
+      let ocrResults = [];
+      let raycaster, mouse;
+      const sphereRadius = 500;
+      const ocrResultRadius = 400;
+
+      let zoom = 1;
+      function updateZoom() {
+        camera.fov = 75 / zoom;
+        camera.updateProjectionMatrix();
+      }
+      function onWheel(event) {
+        event.preventDefault();
+
+        const zoomSpeed = -0.05;
+        const delta = event.deltaY > 0 ? 1 : -1;
+
+        zoom = Math.max(minZoom, Math.min(zoom + delta * zoomSpeed, maxZoom));
+        updateZoom();
+      }
+      window.addEventListener('wheel', onWheel, { passive: false });
+
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(
+          75,
+          window.innerWidth / window.innerHeight,
+          0.1,
+          1000
+        );
+        camera.position.set(0, 0, 0.1);
+        updateZoom();
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document
+          .getElementById('canvas-container')
+          .appendChild(renderer.domElement);
+        renderer.domElement.style.pointerEvents = 'auto';
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enablePan = true;
+        controls.rotateSpeed = -0.25;
+        controls.enableZoom = false;
+
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+
+        window.addEventListener('resize', onWindowResize, false);
+        // window.addEventListener('mousemove', onMouseMove, false);
+        renderer.domElement.addEventListener('mousemove', onMouseMove, false);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        updateZoom();
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function onMouseMove(event) {
+        // Get the canvas bounds
+        const rect = renderer.domElement.getBoundingClientRect();
+
+        // Calculate mouse position relative to the canvas
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      }
+
+      function createPanorama(imageUrl) {
+        const geometry = new THREE.SphereGeometry(sphereRadius, 60, 40);
+        geometry.scale(-1, 1, 1);
+
+        const texture = new THREE.TextureLoader().load(imageUrl, () => {
+          renderer.render(scene, camera);
+        });
+
+        const material = new THREE.MeshBasicMaterial({ map: texture });
+        sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+      }
+
+      function addOCRResults(results) {
+        ocrResults = results;
+        ocrResults.forEach((result) => {
+          const group = new THREE.Group();
+          group.userData.isOCRResult = true;
+          const sprite = createTextSprite(
+            `${result.text} (${result.confidence * 100}%)`
+          );
+          sprite.userData.originalScale = sprite.scale.clone();
+          const boundingBoxGroup = createBoundingBox(result);
+          group.add(sprite);
+          group.add(boundingBoxGroup);
+          positionGroup(group, result);
+          scene.add(group);
+        });
+      }
+      function createTextSprite(text) {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        const scale = 2; // Increase resolution
+        context.font = `Bold ${20 * scale}px Arial`;
+        const textWidth = context.measureText(text).width;
+        canvas.width = textWidth + 20 * scale;
+        canvas.height = 30 * scale;
+
+        function updateCanvas(bgOpacity) {
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.fillStyle = `rgba(0, 0, 0, ${bgOpacity})`;
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.font = `Bold ${20 * scale}px Arial`;
+          context.fillStyle = 'white';
+          context.fillText(text, 5 * scale, 22 * scale);
+        }
+
+        updateCanvas(0.6); // Initial background opacity
+
+        const texture = new THREE.Texture(canvas);
+        texture.needsUpdate = true;
+
+        // disable z depth test so that the sprite is always rendered on top
+        const spriteMaterial = new THREE.SpriteMaterial({
+          map: texture,
+          depthTest: false,
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+
+        sprite.scale.set(canvas.width / 10, canvas.height / 10, 1);
+        sprite.userData.originalScale = sprite.scale.clone();
+        // sprite.userData.updateBackground = (opacity) => {
+        //   updateCanvas(opacity);
+        //   texture.needsUpdate = true;
+        // };
+
+        return sprite;
+      }
+      function createBoundingBox(result) {
+        const group = new THREE.Group();
+
+        // Create transparent plane for interaction
+        const planeGeometry = new THREE.PlaneGeometry(1, 1);
+        const planeMaterial = new THREE.MeshBasicMaterial({
+          transparent: true,
+          opacity: 0,
+          side: THREE.DoubleSide,
+        });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+
+        // Create visible border
+        const borderGeometry = new THREE.EdgesGeometry(planeGeometry);
+        const borderMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        const border = new THREE.LineSegments(borderGeometry, borderMaterial);
+
+        group.add(plane);
+        group.add(border);
+
+        const widthRad = THREE.MathUtils.degToRad(result.width);
+        const heightRad = THREE.MathUtils.degToRad(result.height);
+
+        const widthArc = widthRad * ocrResultRadius;
+        const heightArc = heightRad * ocrResultRadius;
+
+        group.scale.set(widthArc, heightArc, 1);
+        return group;
+      }
+
+      function positionGroup(group, result) {
+        const phi = THREE.MathUtils.degToRad(90 - result.pitch);
+        const theta = THREE.MathUtils.degToRad(result.yaw);
+
+        group.position.set(
+          ocrResultRadius * Math.sin(phi) * Math.cos(theta),
+          ocrResultRadius * Math.cos(phi),
+          ocrResultRadius * Math.sin(phi) * Math.sin(theta)
+        );
+
+        group.lookAt(0, 0, 0);
+
+        const sprite = group.children[0];
+        const box = group.children[1];
+        sprite.position.y = box.scale.y / 2 + sprite.scale.y / 2;
+      }
+      function resetOCRResults() {
+        scene.traverse((object) => {
+          if (
+            object instanceof THREE.Group &&
+            object.userData &&
+            object.userData.isOCRResult
+          ) {
+            const sprite = object.children[0];
+            const boundingBoxGroup = object.children[1];
+            const border = boundingBoxGroup.children[1];
+            sprite.scale.set(
+              sprite.userData.originalScale.x,
+              sprite.userData.originalScale.y,
+              1
+            );
+            // sprite.userData.updateBackground(0.2); // Reset to initial opacity
+            border.material.color.setHex(0xffff00);
+          }
+        });
+      }
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children, true);
+
+        resetOCRResults();
+        renderer.domElement.style.cursor = 'default';
+        for (let i = 0; i < intersects.length; i++) {
+          const intersectedObject = intersects[i].object;
+          if (
+            intersectedObject instanceof THREE.Mesh &&
+            intersectedObject.parent &&
+            intersectedObject.parent.parent &&
+            intersectedObject.parent.parent.userData &&
+            intersectedObject.parent.parent.userData.isOCRResult
+          ) {
+            const group = intersectedObject.parent.parent;
+            const sprite = group.children[0];
+            const boundingBoxGroup = group.children[1];
+            const border = boundingBoxGroup.children[1];
+
+            // Increase text size proportionally
+            const scaleFactor = 6;
+            sprite.scale.set(
+              sprite.userData.originalScale.x * scaleFactor,
+              sprite.userData.originalScale.y * scaleFactor,
+              1
+            );
+
+            // Make background opaque
+            // sprite.userData.updateBackground(0.8);
+
+            // Change border color
+            border.material.color.setHex(0xff0000);
+
+            // make the cursor pointer
+            renderer.domElement.style.cursor = 'pointer';
+
+            break;
+          }
+        }
+
+        renderer.render(scene, camera);
+      }
+      init();
+      animate();
+
+      // Drag and drop functionality
+      const dropZone = document.getElementById('dropZone');
+      const fileInput = document.getElementById('fileInput');
+
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'copy';
+      });
+
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const files = e.dataTransfer.files;
+        handleFiles(files);
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        handleFiles(files);
+      });
+
+      function handleFiles(files) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          if (file.type.startsWith('image/')) {
+            handleImageDrop(file);
+          } else if (file.type === 'application/json') {
+            handleJSONDrop(file);
+          }
+        }
+      }
+
+      function handleImageDrop(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          createPanorama(e.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function handleJSONDrop(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const results = JSON.parse(e.target.result);
+          const mappedResults = results.map((result) => {
+            return {
+              text: result.text,
+              yaw: 180 + result.yaw,
+              pitch: result.pitch,
+              width: result.width,
+              height: result.height,
+              confidence: result.confidence,
+            };
+          });
+          addOCRResults(mappedResults);
+        };
+        reader.readAsText(file);
+      }
+    </script>
+  </body>
+</html>
