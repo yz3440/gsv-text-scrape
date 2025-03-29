@@ -3,260 +3,63 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Panorama Database Viewer</title>
+    <title>GSV Text Scrape - Preview Pages</title>
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="bg-gray-50 min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-[1600px]">
-      <div id="status" class="text-center text-gray-600 mb-6">
-        Loading panoramas...
+    <div class="container mx-auto px-4 py-16 max-w-4xl">
+      <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">GSV Text Scrape</h1>
+        <p class="text-lg text-gray-600">
+          Preview and explore the database contents
+        </p>
       </div>
-      <div id="error" class="hidden text-center text-red-600 mb-6"></div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Left column: Table -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-          <div class="p-4 border-b">
-            <input
-              type="text"
-              id="search"
-              placeholder="Search panorama ID..."
-              class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Preview DB Card -->
+        <a href="/preview-db.html" class="block">
           <div
-            id="table-container"
-            class="overflow-x-auto max-h-[calc(100vh-200px)]"
+            class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-200"
           >
-            <!-- Table will be inserted here -->
+            <h2 class="text-xl font-semibold text-gray-900 mb-2">
+              Preview Database
+            </h2>
+            <p class="text-gray-600">
+              View and search through the panorama database with interactive
+              Street View integration.
+            </p>
           </div>
-          <div class="p-4 border-t flex justify-between items-center">
-            <div class="text-sm text-gray-600">
-              Showing <span id="current-page">1</span> of
-              <span id="total-pages">1</span> pages
-            </div>
-            <div class="flex gap-2">
-              <button
-                id="prev-page"
-                class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-                disabled
-              >
-                Previous
-              </button>
-              <button
-                id="next-page"
-                class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-                disabled
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
+        </a>
 
-        <!-- Right column: Street View -->
-        <div class="lg:sticky lg:top-8">
-          <div class="bg-white rounded-lg shadow overflow-hidden">
-            <div
-              id="street-view-container"
-              class="w-full h-[calc(100vh-100px)]"
-            >
-              <div id="street-view" class="w-full h-full"></div>
-            </div>
+        <!-- Preview OCR Card -->
+        <a href="/preview-ocr.html" class="block">
+          <div
+            class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-200 opacity-75"
+          >
+            <h2 class="text-xl font-semibold text-gray-900 mb-2">
+              Preview OCR
+            </h2>
+            <p class="text-gray-600">
+              Coming soon: View OCR results and extracted text from panoramas.
+            </p>
           </div>
-        </div>
+        </a>
+
+        <!-- Preview DB OCR Card -->
+        <a href="/preview-db-ocr.html" class="block">
+          <div
+            class="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-shadow duration-200 opacity-75"
+          >
+            <h2 class="text-xl font-semibold text-gray-900 mb-2">
+              Preview DB + OCR
+            </h2>
+            <p class="text-gray-600">
+              Coming soon: Combined view of database entries with their OCR
+              results.
+            </p>
+          </div>
+        </a>
       </div>
     </div>
-
-    <script>
-      const API_BASE_URL = '/api';
-      let currentPage = 1;
-      let totalPages = 1;
-      let currentSearch = '';
-
-      async function fetchPanoramas(page = 1, search = '') {
-        try {
-          const response = await fetch(
-            `${API_BASE_URL}/panoramas?page=${page}&page_size=50${
-              search ? `&search=${encodeURIComponent(search)}` : ''
-            }`
-          );
-
-          if (!response.ok) {
-            throw new Error('Failed to fetch panoramas');
-          }
-
-          const data = await response.json();
-          currentPage = data.page;
-          totalPages = data.total_pages;
-
-          // Update pagination UI
-          document.getElementById('current-page').textContent = currentPage;
-          document.getElementById('total-pages').textContent = totalPages;
-          document.getElementById('prev-page').disabled = currentPage === 1;
-          document.getElementById('next-page').disabled =
-            currentPage === totalPages;
-
-          // Hide loading message
-          document.getElementById('status').classList.add('hidden');
-
-          return data.data;
-        } catch (error) {
-          document.getElementById(
-            'error'
-          ).textContent = `Error: ${error.message}`;
-          document.getElementById('error').classList.remove('hidden');
-          document.getElementById('status').classList.add('hidden');
-          return [];
-        }
-      }
-
-      function createTable(panoramas) {
-        const table = document.createElement('table');
-        table.className = 'min-w-full divide-y divide-gray-200';
-
-        const thead = document.createElement('thead');
-        const tbody = document.createElement('tbody');
-        tbody.className = 'bg-white divide-y divide-gray-200';
-
-        // Create header row
-        const headerRow = document.createElement('tr');
-        headerRow.className = 'bg-gray-50';
-        const columns = Object.keys(panoramas[0] || {});
-        columns.forEach((column) => {
-          const th = document.createElement('th');
-          th.className =
-            'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
-          th.textContent = column;
-          headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        // Create data rows
-        panoramas.forEach((panorama) => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-gray-50 cursor-pointer';
-          columns.forEach((column) => {
-            const td = document.createElement('td');
-            td.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-900';
-            td.textContent = panorama[column];
-            tr.appendChild(td);
-          });
-          tbody.appendChild(tr);
-
-          // Add click handler for the row
-          tr.addEventListener('click', () => {
-            // Remove highlight from all rows
-            tbody
-              .querySelectorAll('tr')
-              .forEach((r) => r.classList.remove('bg-blue-50'));
-            // Add highlight to clicked row
-            tr.classList.add('bg-blue-50');
-
-            // Show the panorama
-            showPanorama(panorama.pano_id);
-          });
-        });
-        table.appendChild(tbody);
-
-        const container = document.getElementById('table-container');
-        container.innerHTML = '';
-        container.appendChild(table);
-      }
-
-      async function showPanorama(panoId) {
-        try {
-          console.log('Fetching Street View URL for:', panoId);
-          const response = await fetch(
-            `${API_BASE_URL}/streetview-url/${panoId}`
-          );
-          const data = await response.json();
-          console.log('Response:', response.status, data);
-
-          if (!response.ok) {
-            throw new Error(data.detail || 'Failed to get Street View URL');
-          }
-
-          const panoramaElement = document.getElementById('street-view');
-          panoramaElement.innerHTML = ''; // Clear previous panorama
-
-          const iframe = document.createElement('iframe');
-          iframe.src = data.url;
-          iframe.className = 'w-full h-full border-0';
-          iframe.allowFullscreen = true;
-
-          // Add error handler for iframe
-          iframe.onerror = () => {
-            console.error('iframe error:', data.url);
-            panoramaElement.innerHTML = `
-              <div class="flex flex-col items-center justify-center h-full text-red-600 p-4">
-                <div class="text-lg font-semibold mb-2">Failed to load Street View</div>
-                <div class="text-sm text-gray-600">This panorama might not be available in Google Street View</div>
-                <div class="text-xs text-gray-500 mt-2">Panorama ID: ${panoId}</div>
-              </div>
-            `;
-          };
-
-          panoramaElement.appendChild(iframe);
-        } catch (error) {
-          console.error('Error loading Street View:', error);
-          document.getElementById('street-view').innerHTML = `
-            <div class="flex flex-col items-center justify-center h-full text-red-600 p-4">
-              <div class="text-lg font-semibold mb-2">Error loading Street View</div>
-              <div class="text-sm text-gray-600">${error.message}</div>
-              <div class="text-xs text-gray-500 mt-2">Panorama ID: ${panoId}</div>
-            </div>
-          `;
-        }
-      }
-
-      // Event listeners
-      document
-        .getElementById('prev-page')
-        .addEventListener('click', async () => {
-          if (currentPage > 1) {
-            const panoramas = await fetchPanoramas(
-              currentPage - 1,
-              currentSearch
-            );
-            createTable(panoramas);
-          }
-        });
-
-      document
-        .getElementById('next-page')
-        .addEventListener('click', async () => {
-          if (currentPage < totalPages) {
-            const panoramas = await fetchPanoramas(
-              currentPage + 1,
-              currentSearch
-            );
-            createTable(panoramas);
-          }
-        });
-
-      let searchTimeout;
-      document.getElementById('search').addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        currentSearch = e.target.value;
-        searchTimeout = setTimeout(async () => {
-          const panoramas = await fetchPanoramas(1, currentSearch);
-          createTable(panoramas);
-        }, 300);
-      });
-
-      // Initial load
-      async function init() {
-        const panoramas = await fetchPanoramas();
-        if (panoramas.length > 0) {
-          createTable(panoramas);
-          showPanorama(panoramas[0].pano_id);
-          document.querySelector('tbody tr').classList.add('bg-blue-50');
-        }
-      }
-
-      init();
-    </script>
   </body>
 </html>

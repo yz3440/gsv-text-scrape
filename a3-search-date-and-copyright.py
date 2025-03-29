@@ -43,7 +43,8 @@ def setup_database():
         heading REAL,
         pitch REAL,
         roll REAL,
-        ocred BOOLEAN DEFAULT FALSE
+        computed_ocr BOOLEAN DEFAULT FALSE,
+        download_attempted INTEGER DEFAULT 0
     )
     """
     )

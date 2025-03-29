@@ -1,3 +1,7 @@
+/temp
+/temp/*
+
+# Database
 gsv.db
 *.db
 *.db-journal

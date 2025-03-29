@@ -1,0 +1,4 @@
+transformers
+einops
+timm
+flash_attn

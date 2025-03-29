@@ -1,0 +1,8 @@
+pillow
+py360convert
+geopandas
+textdistance
+python-dotenv
+streetlevel
+psycopg2-binary
+opencv-python
