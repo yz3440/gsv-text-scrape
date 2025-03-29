@@ -40,7 +40,8 @@ def setup_database():
         copyright TEXT,
         heading REAL,
         pitch REAL,
-        roll REAL
+        roll REAL,
+        ocred BOOLEAN DEFAULT FALSE
     )
     """
     )
@@ -101,7 +102,7 @@ def search_and_insert(coord_id, lat, lon):
 
     for result in panorama_results:
         cursor.execute(
-            "INSERT OR IGNORE INTO search_panoramas VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO search_panoramas VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 result.pano_id,
                 result.lat,
@@ -111,6 +112,7 @@ def search_and_insert(coord_id, lat, lon):
                 result.heading,
                 result.pitch,
                 result.roll,
+                False,
             ],
         )
     cursor.execute("UPDATE sample_coords SET searched = 1 WHERE id = ?", [coord_id])

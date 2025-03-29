@@ -34,7 +34,8 @@ def setup_database():
         copyright TEXT,
         heading REAL,
         pitch REAL,
-        roll REAL
+        roll REAL,
+        ocred BOOLEAN DEFAULT FALSE
     )
     """
     )
