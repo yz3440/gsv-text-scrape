@@ -108,4 +108,4 @@ def get_google_streetview_embed_url(
     if not GOOGLE_MAPS_API_KEY:
         raise ValueError("GOOGLE_MAPS_API_KEY is required")
 
-    return f"https://www.google.com/maps/embed/v1/streetview?key={GOOGLE_MAPS_API_KEY}&location={gsv_prop.lat},{gsv_prop.lng}&pano={gsv_prop.panorama_id}&heading={gsv_prop.heading}&pitch={gsv_prop.pitch}&fov={gsv_prop.fov}&zoom={gsv_prop.zoom}"
+    return f"https://www.google.com/maps/embed/v1/streetview?key={GOOGLE_MAPS_API_KEY}&location={gsv_prop.lat},{gsv_prop.lng}&pano={gsv_prop.panorama_id}&heading={gsv_prop.heading}&pitch={gsv_prop.pitch}&fov={gsv_prop.fov}"

@@ -8,6 +8,12 @@ import uvicorn
 import os
 import logging
 import dotenv
+import sys
+
+# Add the current directory to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from util.gsv_url import get_google_streetview_props, get_google_streetview_embed_url
 
 dotenv.load_dotenv()
 
@@ -266,6 +272,78 @@ async def search_ocr(
 
     except Exception as e:
         logger.error(f"Error searching OCR results: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.get("/api/ocr-streetview-url/{pano_id}")
+async def get_ocr_streetview_url(pano_id: str, ocr_id: int):
+    """Generate a Google Street View URL for an OCR result, taking into account OCR coordinates."""
+    conn = None
+    try:
+        logger.info(f"Looking up OCR result {ocr_id} for panorama ID: {pano_id}")
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Get OCR result and panorama data
+        cursor.execute(
+            """
+            SELECT 
+                ocr.id,
+                ocr.pano_id,
+                ocr.text,
+                ocr.confidence,
+                ocr.yaw,
+                ocr.pitch,
+                ocr.width,
+                ocr.height,
+                ocr.engine,
+                sp.lat,
+                sp.lon,
+                sp.heading,
+                sp.pitch as panorama_pitch,
+                sp.roll
+            FROM ocr_result ocr
+            JOIN search_panoramas sp ON ocr.pano_id = sp.pano_id
+            WHERE ocr.pano_id = ? AND ocr.id = ?
+        """,
+            (pano_id, ocr_id),
+        )
+
+        result = cursor.fetchone()
+        if not result:
+            logger.error(f"OCR result {ocr_id} not found for panorama {pano_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"OCR result {ocr_id} not found for panorama {pano_id}",
+            )
+
+        # Convert to dict for easier access
+        data = dict(result)
+
+        # Generate Street View URL using the OCR coordinates
+        gsv_props = get_google_streetview_props(
+            panorama_id=data["pano_id"],
+            lat=data["lat"],
+            lng=data["lon"],
+            ocr_yaw=data["yaw"],
+            ocr_pitch=data["pitch"],
+            street_view_heading=data["heading"],
+            street_view_pitch=data["panorama_pitch"],
+            street_view_roll=data["roll"],
+            ocr_width=data["width"],
+            ocr_height=data["height"],
+        )
+
+        url = get_google_streetview_embed_url(gsv_props, GOOGLE_MAP_API_KEY)
+        print(url)
+        logger.info(f"Generated Street View URL for OCR result {ocr_id}")
+        return {"url": url}
+
+    except Exception as e:
+        logger.error(f"Error generating Street View URL for OCR result: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if conn:

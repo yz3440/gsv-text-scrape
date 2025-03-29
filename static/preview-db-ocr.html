@@ -180,8 +180,8 @@
             // Add highlight to clicked row
             tr.classList.add('bg-blue-50');
 
-            // Show the panorama
-            showPanorama(result.pano_id);
+            // Show the panorama with OCR coordinates
+            showPanorama(result.pano_id, result.id);
           });
         });
         table.appendChild(tbody);
@@ -189,10 +189,10 @@
         container.appendChild(table);
       }
 
-      async function showPanorama(panoId) {
+      async function showPanorama(panoId, ocrId) {
         try {
           const response = await fetch(
-            `${API_BASE_URL}/streetview-url/${panoId}`
+            `${API_BASE_URL}/ocr-streetview-url/${panoId}?ocr_id=${ocrId}`
           );
           const data = await response.json();
 
@@ -212,24 +212,24 @@
           iframe.onerror = () => {
             console.error('iframe error:', data.url);
             panoramaElement.innerHTML = `
-                        <div class="flex flex-col items-center justify-center h-full text-red-600 p-4">
-                            <div class="text-lg font-semibold mb-2">Failed to load Street View</div>
-                            <div class="text-sm text-gray-600">This panorama might not be available in Google Street View</div>
-                            <div class="text-xs text-gray-500 mt-2">Panorama ID: ${panoId}</div>
-                        </div>
-                    `;
+              <div class="flex flex-col items-center justify-center h-full text-red-600 p-4">
+                <div class="text-lg font-semibold mb-2">Failed to load Street View</div>
+                <div class="text-sm text-gray-600">This panorama might not be available in Google Street View</div>
+                <div class="text-xs text-gray-500 mt-2">Panorama ID: ${panoId}</div>
+              </div>
+            `;
           };
 
           panoramaElement.appendChild(iframe);
         } catch (error) {
           console.error('Error loading Street View:', error);
           document.getElementById('street-view').innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-full text-red-600 p-4">
-                        <div class="text-lg font-semibold mb-2">Error loading Street View</div>
-                        <div class="text-sm text-gray-600">${error.message}</div>
-                        <div class="text-xs text-gray-500 mt-2">Panorama ID: ${panoId}</div>
-                    </div>
-                `;
+            <div class="flex flex-col items-center justify-center h-full text-red-600 p-4">
+              <div class="text-lg font-semibold mb-2">Error loading Street View</div>
+              <div class="text-sm text-gray-600">${error.message}</div>
+              <div class="text-xs text-gray-500 mt-2">Panorama ID: ${panoId}</div>
+            </div>
+          `;
         }
       }
 
@@ -296,7 +296,7 @@
         const results = await fetchOCRResults();
         if (results.length > 0) {
           createOCRTable(results);
-          showPanorama(results[0].pano_id);
+          showPanorama(results[0].pano_id, results[0].id);
           document.querySelector('tbody tr').classList.add('bg-blue-50');
         }
       }
